@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.checkOnSave.allTargets": false,
+    "rust-analyzer.diagnostics.enableExperimental": true,
+    "rust-analyzer.trace.extension": true,
+}
