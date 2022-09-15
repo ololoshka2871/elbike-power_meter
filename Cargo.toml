@@ -9,6 +9,7 @@ license = "MIT OR Apache-2.0"
 num = { version = "0.4", default-features = false }
 ##esp-idf-alloc = "0.1.1"
 esp8266-hal = "0.5"
+esp8266-hal-proc-macros = "0.1"
 panic-halt = "0.2"
 xtensa-lx = "0.7"
 xtensa-lx-rt = { version = "0.13", optional = true, features = ["esp8266"] }

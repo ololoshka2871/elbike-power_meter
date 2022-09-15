@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+#![feature(asm_experimental_arch)]
+
 use core::fmt::Write;
 
 use embedded_graphics::{
@@ -18,6 +20,7 @@ use panic_halt as _;
 use ssd1306::prelude::DisplayConfig;
 
 mod logger;
+mod nanosecond_delay_provider;
 
 /*
 extern crate esp_idf_alloc;
@@ -45,6 +48,10 @@ fn main() -> ! {
         esp8266_software_i2c::I2C::new(
             pins.gpio5.into_open_drain_output(),
             pins.gpio4.into_open_drain_output(),
+            nanosecond_delay_provider::NanosecondDelayProvider {
+                minimal: 50,
+                k: 640,
+            },
         )
         .set_speed(esp8266_software_i2c::I2CSpeed::Fast400kHz),
     );
