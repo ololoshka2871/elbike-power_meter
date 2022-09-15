@@ -1,6 +1,8 @@
 #![no_std]
 #![no_main]
 
+use core::fmt::Write;
+
 use embedded_graphics::{
     mono_font::{self, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
@@ -15,6 +17,8 @@ use num::rational::Ratio;
 use panic_halt as _;
 use ssd1306::prelude::DisplayConfig;
 
+mod logger;
+
 /*
 extern crate esp_idf_alloc;
 
@@ -28,19 +32,24 @@ fn main() -> ! {
 
     let pins = dp.GPIO.split();
 
-    let mut display_reset_pin = pins.gpio5.into_push_pull_output();
-    let display_interface = display_interface_spi::SPIInterface::new(
-        esp8266_hal::spi::SPI1Master::new(
-            dp.SPI1,
-            pins.gpio14.into_hspi(),
-            pins.gpio12.into_hspi(),
-            pins.gpio13.into_hspi(),
-            esp8266_hal::spi::SpiClock::Spi2MHz,
-        ),
-        pins.gpio2.into_push_pull_output(),
-        pins.gpio4.into_push_pull_output(),
-    );
+    let mut serial = dp
+        .UART0
+        .serial(pins.gpio1.into_uart(), pins.gpio3.into_uart());
+
+    writeln!(serial, "\nStartup!").unwrap();
+
     let (_, mut timer2) = dp.TIMER.timers();
+
+    //let mut display_reset_pin = pins.gpio5.into_push_pull_output();
+    let display_interface = ssd1306::I2CDisplayInterface::new_alternate_address(
+        esp8266_software_i2c::I2C::new(
+            pins.gpio5.into_open_drain_output(),
+            pins.gpio4.into_open_drain_output(),
+        )
+        .set_speed(esp8266_software_i2c::I2CSpeed::Fast400kHz),
+    );
+
+    writeln!(serial, "\nDisplay interface...").unwrap();
 
     // Font iso_8859_5 есть русские символы, вывод "приямо так".
     // Вычисление выравнивания не работает с русскими символами
@@ -52,13 +61,19 @@ fn main() -> ! {
     )
     .into_buffered_graphics_mode();
 
-    disp.reset(&mut display_reset_pin, &mut timer2).unwrap();
+    writeln!(serial, "\nDisplay....").unwrap();
+
     disp.init().unwrap();
+
+    writeln!(serial, "\nDisplay Init.....").unwrap();
 
     draw_initial_screen(&mut disp).expect("Failed to draw init screeen");
 
+    writeln!(serial, "\nDisplay draw...").unwrap();
+
     loop {
         timer2.delay_ms(1000u32);
+        writeln!(serial, "ping!").unwrap();
     }
 }
 

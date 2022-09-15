@@ -8,16 +8,18 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 num = { version = "0.4", default-features = false }
 ##esp-idf-alloc = "0.1.1"
-esp8266-hal = { path = "libs/esp8266-hal" }
-panic-halt = "0.2.0"
-xtensa-lx = "0.7.0"
-xtensa-lx-rt = { version = "0.13.0", optional = true, features = ["esp8266"] }
+esp8266-hal = "0.5"
+panic-halt = "0.2"
+xtensa-lx = "0.7"
+xtensa-lx-rt = { version = "0.13", optional = true, features = ["esp8266"] }
 
 # display
-display-interface = "0.4.1"
-display-interface-spi = "0.4.1"
-ssd1306 = "0.7.1"
-embedded-graphics = "0.7.1" 
+display-interface = "0.4"
+display-interface-i2c = "0.4"
+ssd1306 = "0.7"
+embedded-graphics = "0.7" 
+
+esp8266-software-i2c = { path = "libs/software-i2c" }
 
 [profile.release]
 lto = true

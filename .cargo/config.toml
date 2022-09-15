@@ -10,3 +10,7 @@ target = "xtensa-esp8266-none-elf"
 
 [unstable]
 build-std = ["core"]
+
+[alias]
+fm = "espmonitor --release --target xtensa-esp8266-none-elf /dev/ttyUSB0 --flash"
+m = "espmonitor --release --target xtensa-esp8266-none-elf /dev/ttyUSB0"
