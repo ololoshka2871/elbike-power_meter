@@ -22,5 +22,8 @@ embedded-graphics = "0.7"
 
 esp8266-software-i2c = { path = "libs/software-i2c", features = ["esp8266"] }
 
+#24xx
+eeprom24x = "0.5"
+
 [profile.release]
 lto = true

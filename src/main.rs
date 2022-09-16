@@ -53,6 +53,9 @@ fn main() -> ! {
     .set_speed(esp8266_software_i2c::I2CSpeed::Fast400kHz)
     .into();
 
+    let mut eeprom =
+        eeprom24x::Eeprom24x::new_24x08(i2c.make_accessor(), eeprom24x::SlaveAddr::default());
+
     //let mut display_reset_pin = pins.gpio5.into_push_pull_output();
     let display_interface =
         ssd1306::I2CDisplayInterface::new_alternate_address(i2c.make_accessor());
@@ -80,8 +83,13 @@ fn main() -> ! {
     writeln!(serial, "\nDisplay draw...").unwrap();
 
     loop {
+        let mut eeprom_data = [0u8; 128];
+        match eeprom.read_data(0, &mut eeprom_data) {
+            Ok(_) => writeln!(serial, "Eeprom data: {:?}", eeprom_data),
+            Err(e) => writeln!(serial, "Failed to read eeprom: {:?}", e),
+        }.unwrap();
+
         timer2.delay_ms(1000u32);
-        writeln!(serial, "ping!").unwrap();
     }
 }
 
