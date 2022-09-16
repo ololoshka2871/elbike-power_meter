@@ -11,5 +11,7 @@ repository = "https://github.com/esp-rs/esp8266-hal"
 embedded-hal = { version = "0.2", features = ["unproven"] }
 esp8266-hal-proc-macros = "0.1"
 esp8266-hal = "0.5"
-#xtensa-lx = "0.7"
+xtensa-lx = { version = "0.7", default_features = false }
 
+[features]
+esp8266 = [ "xtensa-lx/esp8266" ]

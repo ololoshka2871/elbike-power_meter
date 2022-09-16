@@ -9,9 +9,16 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
+mod shared_i2c_bus;
+
 use embedded_hal::blocking::i2c::Write;
 use embedded_hal::digital::v2::StatefulOutputPin;
-use esp8266_hal::{time::{Nanoseconds, U32Ext}, ram};
+use esp8266_hal::{
+    ram,
+    time::{Nanoseconds, U32Ext},
+};
+
+pub use shared_i2c_bus::SharedI2CBus;
 
 #[derive(Clone, Copy)]
 pub enum I2CSpeed {

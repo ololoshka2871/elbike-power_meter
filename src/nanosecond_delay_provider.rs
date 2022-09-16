@@ -10,7 +10,7 @@ pub(crate) struct NanosecondDelayProvider {
 impl esp8266_software_i2c::ProvideNanosecondDelay for NanosecondDelayProvider {
     #[ram]
     fn delay_ns(&self, _ns: Nanoseconds) {
-        //xtensa_lx::timer::delay(ns.0.saturating_sub(self.minimal) / self.k)
+        // xtensa_lx::timer::delay(ns.0.saturating_sub(self.minimal) / self.k)
         // ровно 400Khz
         unsafe {
             asm!("nop");

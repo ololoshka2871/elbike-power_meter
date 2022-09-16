@@ -1,6 +1,5 @@
 #![no_std]
 #![no_main]
-
 #![feature(asm_experimental_arch)]
 
 use core::fmt::Write;
@@ -43,18 +42,20 @@ fn main() -> ! {
 
     let (_, mut timer2) = dp.TIMER.timers();
 
+    let i2c: esp8266_software_i2c::SharedI2CBus<_, _, _> = esp8266_software_i2c::I2C::new(
+        pins.gpio5.into_open_drain_output(),
+        pins.gpio4.into_open_drain_output(),
+        nanosecond_delay_provider::NanosecondDelayProvider {
+            minimal: 50,
+            k: 640,
+        },
+    )
+    .set_speed(esp8266_software_i2c::I2CSpeed::Fast400kHz)
+    .into();
+
     //let mut display_reset_pin = pins.gpio5.into_push_pull_output();
-    let display_interface = ssd1306::I2CDisplayInterface::new_alternate_address(
-        esp8266_software_i2c::I2C::new(
-            pins.gpio5.into_open_drain_output(),
-            pins.gpio4.into_open_drain_output(),
-            nanosecond_delay_provider::NanosecondDelayProvider {
-                minimal: 50,
-                k: 640,
-            },
-        )
-        .set_speed(esp8266_software_i2c::I2CSpeed::Fast400kHz),
-    );
+    let display_interface =
+        ssd1306::I2CDisplayInterface::new_alternate_address(i2c.make_accessor());
 
     writeln!(serial, "\nDisplay interface...").unwrap();
 

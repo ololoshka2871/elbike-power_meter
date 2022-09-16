@@ -20,7 +20,7 @@ display-interface-i2c = "0.4"
 ssd1306 = "0.7"
 embedded-graphics = "0.7" 
 
-esp8266-software-i2c = { path = "libs/software-i2c" }
+esp8266-software-i2c = { path = "libs/software-i2c", features = ["esp8266"] }
 
 [profile.release]
 lto = true
