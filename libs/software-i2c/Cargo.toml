@@ -1,7 +1,10 @@
 [package]
 name = "esp8266-software-i2c"
 version = "0.0.1"
-authors = ["Joshua Cole <https://github.com/SharpCoder/teensycore>",  "ololoshka2871 <SweetTreasure@2ch.hk>"]
+authors = [
+    "Joshua Cole <https://github.com/SharpCoder/teensycore>",
+    "ololoshka2871 <SweetTreasure@2ch.hk>"
+]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "An experimental hardware abstraction layer for the esp8266"

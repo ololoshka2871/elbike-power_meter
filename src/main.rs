@@ -42,6 +42,11 @@ fn main() -> ! {
 
     let (_, mut timer2) = dp.TIMER.timers();
 
+    let mut disp_reset_pin = pins.gpio2.into_open_drain_output();
+    disp_reset_pin.set_high();
+    timer2.delay_ms(1);
+    disp_reset_pin.set_high();
+
     let i2c: esp8266_software_i2c::SharedI2CBus<_, _, _> = esp8266_software_i2c::I2C::new(
         pins.gpio5.into_open_drain_output(),
         pins.gpio4.into_open_drain_output(),
@@ -57,8 +62,7 @@ fn main() -> ! {
         eeprom24x::Eeprom24x::new_24x08(i2c.make_accessor(), eeprom24x::SlaveAddr::default());
 
     //let mut display_reset_pin = pins.gpio5.into_push_pull_output();
-    let display_interface =
-        ssd1306::I2CDisplayInterface::new_alternate_address(i2c.make_accessor());
+    let display_interface = ssd1306::I2CDisplayInterface::new(i2c.make_accessor());
 
     writeln!(serial, "\nDisplay interface...").unwrap();
 
@@ -87,7 +91,8 @@ fn main() -> ! {
         match eeprom.read_data(0, &mut eeprom_data) {
             Ok(_) => writeln!(serial, "Eeprom data: {:?}", eeprom_data),
             Err(e) => writeln!(serial, "Failed to read eeprom: {:?}", e),
-        }.unwrap();
+        }
+        .unwrap();
 
         timer2.delay_ms(1000u32);
     }
