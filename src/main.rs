@@ -2,6 +2,8 @@
 #![no_main]
 #![feature(asm_experimental_arch)]
 
+mod uart0_cfg;
+
 use core::fmt::Write;
 
 use embedded_graphics::{
@@ -12,21 +14,18 @@ use embedded_graphics::{
     text::{Baseline, Text},
     Drawable,
 };
-use esp8266_hal::{prelude::*, target::Peripherals};
+use esp8266_hal::{prelude::*, target::Peripherals, time::{U32Ext, MegaHertz}};
 
 use num::rational::Ratio;
 use panic_halt as _;
 use ssd1306::prelude::DisplayConfig;
+use uart0_cfg::UART0Ex;
 
 mod logger;
 mod nanosecond_delay_provider;
 
-/*
-extern crate esp_idf_alloc;
-
-#[global_allocator]
-static A: esp_idf_alloc::EspIdfAllocator = esp_idf_alloc::EspIdfAllocator;
-*/
+const UART_BOUD: u32 = 9600;
+const CPU_SPEED: MegaHertz = 80.mhz();
 
 #[entry]
 fn main() -> ! {
@@ -36,6 +35,7 @@ fn main() -> ! {
 
     let mut serial = dp
         .UART0
+        .set_boud_devider(UART_BOUD, CPU_SPEED)
         .serial(pins.gpio1.into_uart(), pins.gpio3.into_uart());
 
     writeln!(serial, "\nStartup!").unwrap();
@@ -43,9 +43,9 @@ fn main() -> ! {
     let (_, mut timer2) = dp.TIMER.timers();
 
     let mut disp_reset_pin = pins.gpio2.into_open_drain_output();
-    disp_reset_pin.set_high();
+    let _ = disp_reset_pin.set_high();
     timer2.delay_ms(1);
-    disp_reset_pin.set_high();
+    let _ = disp_reset_pin.set_high();
 
     let i2c: esp8266_software_i2c::SharedI2CBus<_, _, _> = esp8266_software_i2c::I2C::new(
         pins.gpio5.into_open_drain_output(),

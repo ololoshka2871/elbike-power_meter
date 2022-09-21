@@ -7,8 +7,7 @@ authors = [
 ]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-description = "An experimental hardware abstraction layer for the esp8266"
-repository = "https://github.com/esp-rs/esp8266-hal"
+description = "Simple software i2c bus for esp8266"
 
 [dependencies]
 embedded-hal = { version = "0.2", features = ["unproven"] }
