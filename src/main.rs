@@ -14,7 +14,7 @@ use embedded_graphics::{
     text::{Baseline, Text},
     Drawable,
 };
-use esp8266_hal::{prelude::*, target::Peripherals, time::{U32Ext, MegaHertz}};
+use esp8266_hal::{prelude::*, target::Peripherals, time::MegaHertz};
 
 use num::rational::Ratio;
 use panic_halt as _;
@@ -25,7 +25,7 @@ mod logger;
 mod nanosecond_delay_provider;
 
 const UART_BOUD: u32 = 9600;
-const CPU_SPEED: MegaHertz = 80.mhz();
+const CPU_SPEED_MHZ: u32 = 80;
 
 #[entry]
 fn main() -> ! {
@@ -35,7 +35,7 @@ fn main() -> ! {
 
     let mut serial = dp
         .UART0
-        .set_boud_devider(UART_BOUD, CPU_SPEED)
+        .set_boud_devider(UART_BOUD, MegaHertz(CPU_SPEED_MHZ))
         .serial(pins.gpio1.into_uart(), pins.gpio3.into_uart());
 
     writeln!(serial, "\nStartup!").unwrap();
