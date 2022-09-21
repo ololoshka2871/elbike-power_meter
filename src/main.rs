@@ -2,10 +2,13 @@
 #![no_main]
 #![feature(asm_experimental_arch)]
 
+mod controller2bc_parcer;
 mod uart0_cfg;
 
-use core::fmt::Write;
+use core::{cell::UnsafeCell, fmt::Write};
 
+use arrayvec::{ArrayString};
+use controller2bc_parcer::Message;
 use embedded_graphics::{
     mono_font::{self, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
@@ -24,7 +27,7 @@ use uart0_cfg::UART0Ex;
 mod logger;
 mod nanosecond_delay_provider;
 
-const UART_BOUD: u32 = 9600;
+const UART_BOUD: u32 = 115200;
 const CPU_SPEED_MHZ: u32 = 80;
 
 #[entry]
@@ -58,8 +61,10 @@ fn main() -> ! {
     .set_speed(esp8266_software_i2c::I2CSpeed::Fast400kHz)
     .into();
 
+    /*
     let mut eeprom =
         eeprom24x::Eeprom24x::new_24x08(i2c.make_accessor(), eeprom24x::SlaveAddr::default());
+    */
 
     //let mut display_reset_pin = pins.gpio5.into_push_pull_output();
     let display_interface = ssd1306::I2CDisplayInterface::new(i2c.make_accessor());
@@ -82,22 +87,72 @@ fn main() -> ! {
 
     writeln!(serial, "\nDisplay Init.....").unwrap();
 
-    draw_initial_screen(&mut disp).expect("Failed to draw init screeen");
+    //draw_initial_screen(&mut disp).expect("Failed to draw init screeen");
+    draw_frame(&mut disp, Message::default()).expect("Failed to draw init screeen");
 
     writeln!(serial, "\nDisplay draw...").unwrap();
 
+    let parcer = UnsafeCell::new(controller2bc_parcer::Controller2BCParcer::default());
+    let mut uart_w_interrupt = serial.attach_interrupt(|uart| {
+        if let Ok(b) = uart.read() {
+            unsafe { (*parcer.get()).feed(b) };
+        }
+    });
+
+    writeln!(uart_w_interrupt, "\nUart parcer...").unwrap();
+
     loop {
+        /*
         let mut eeprom_data = [0u8; 128];
         match eeprom.read_data(0, &mut eeprom_data) {
             Ok(_) => writeln!(serial, "Eeprom data: {:?}", eeprom_data),
             Err(e) => writeln!(serial, "Failed to read eeprom: {:?}", e),
         }
         .unwrap();
+        */
 
-        timer2.delay_ms(1000u32);
+        if let Some(result) = unsafe { (*parcer.get()).try_get() } {
+            let _ = writeln!(uart_w_interrupt, "Got message: {:?}", result);
+
+            draw_frame(&mut disp, result).expect("Failed to draw frame");
+        }
     }
 }
 
+fn draw_frame<DI, SIZE>(
+    disp: &mut ssd1306::Ssd1306<DI, SIZE, ssd1306::mode::BufferedGraphicsMode<SIZE>>,
+    msg: Message,
+) -> Result<(), display_interface::DisplayError>
+where
+    DI: display_interface::WriteOnlyDataCommand,
+    SIZE: ssd1306::size::DisplaySize,
+{
+    let small_font_italic = MonoTextStyleBuilder::new()
+        .font(&mono_font::iso_8859_5::FONT_6X13_ITALIC)
+        .text_color(BinaryColor::On)
+        .build();
+
+    let display_dim = disp.dimensions();
+    let _display_dim = (display_dim.0 as i32, display_dim.1 as i32);
+
+    let mut buf: ArrayString<256> = ArrayString::new();
+
+    write!(buf, "{}", msg).unwrap();
+
+    Text::with_baseline(
+        buf.as_str(),
+        Point::new(18, 0),
+        small_font_italic,
+        Baseline::Top,
+    )
+    .draw(disp)?;
+
+    disp.flush()?;
+
+    Ok(())
+}
+
+/*
 fn draw_initial_screen<DI, SIZE>(
     disp: &mut ssd1306::Ssd1306<DI, SIZE, ssd1306::mode::BufferedGraphicsMode<SIZE>>,
 ) -> Result<(), display_interface::DisplayError>
@@ -171,3 +226,4 @@ where
 
     Ok(())
 }
+*/

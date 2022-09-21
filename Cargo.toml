@@ -7,6 +7,9 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 num = { version = "0.4", default-features = false }
+num-derive = "0.3"
+num-traits = { version = "0.2", default-features = false }
+arrayvec = { version = "0.7", default-features = false }
 esp8266 = "0.6"
 esp8266-hal = "0.5"
 esp8266-hal-proc-macros = "0.1"
