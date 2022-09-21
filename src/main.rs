@@ -5,10 +5,14 @@
 mod controller2bc_parcer;
 mod uart0_cfg;
 
-use core::{cell::UnsafeCell, fmt::Write};
+use core::{
+    borrow::{Borrow, BorrowMut},
+    cell::UnsafeCell,
+    fmt::Write,
+};
 
-use arrayvec::{ArrayString};
-use controller2bc_parcer::Message;
+use arrayvec::ArrayString;
+use controller2bc_parcer::{Controller2BCParcer, Message};
 use embedded_graphics::{
     mono_font::{self, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
@@ -23,12 +27,16 @@ use num::rational::Ratio;
 use panic_halt as _;
 use ssd1306::prelude::DisplayConfig;
 use uart0_cfg::UART0Ex;
+use xtensa_lx::mutex::{CriticalSectionMutex, Mutex};
 
 mod logger;
 mod nanosecond_delay_provider;
 
 const UART_BOUD: u32 = 115200;
 const CPU_SPEED_MHZ: u32 = 80;
+
+// если не сделать так то очему-то крашит стек
+static PARCER: CriticalSectionMutex<Option<Controller2BCParcer>> = CriticalSectionMutex::new(None);
 
 #[entry]
 fn main() -> ! {
@@ -92,14 +100,14 @@ fn main() -> ! {
 
     writeln!(serial, "\nDisplay draw...").unwrap();
 
-    let parcer = UnsafeCell::new(controller2bc_parcer::Controller2BCParcer::default());
-    let mut uart_w_interrupt = serial.attach_interrupt(|uart| {
-        if let Ok(b) = uart.read() {
-            unsafe { (*parcer.get()).feed(b) };
+    (&PARCER).lock(|l| *l = Some(Controller2BCParcer::default()));
+    let mut serial = serial.attach_interrupt(move |_serial| {
+        if let Ok(b) = _serial.read() {
+            (&PARCER).lock(|l| l.as_mut().unwrap().feed(b));
         }
     });
 
-    writeln!(uart_w_interrupt, "\nUart parcer...").unwrap();
+    writeln!(serial, "\nUart parcer...").unwrap();
 
     loop {
         /*
@@ -111,11 +119,25 @@ fn main() -> ! {
         .unwrap();
         */
 
-        if let Some(result) = unsafe { (*parcer.get()).try_get() } {
-            let _ = writeln!(uart_w_interrupt, "Got message: {:?}", result);
-
+        // A_0__________
+        if let Some(result) = (&PARCER).lock(|l| l.as_mut().unwrap().try_get()) {
+            let _ = writeln!(serial, "Got message: {:?}", result);
             draw_frame(&mut disp, result).expect("Failed to draw frame");
+        } 
+        /*
+        else {
+            let c = (&PARCER).lock(|l| l.as_ref().unwrap().count());
+            let _ = writeln!(serial, "count: {:08}\r", &c);
         }
+        */
+
+        /*
+        let c = (&PARCER).lock(|l| l.as_ref().unwrap().count());
+        let _ = writeln!(serial, "count: {:08}\r", &c);
+        */
+
+        //writeln!(serial, "Ping").unwrap();
+        timer2.delay_ms(100);
     }
 }
 

@@ -76,15 +76,14 @@ impl Controller2BCParcer {
         let ok = match self.wp {
             0 => data == 0x41,
             2 => data == 0x30,
-            10 | 11 => data != 0,
-            1 | (3..=9) => {
-                self.raw_data[self.wp] = data;
-                true
-            }
-            _ => return,
+            10 | 11 => data == 0,
+            1..=11 => true,
+
+            _ => false,
         };
 
         if ok {
+            self.raw_data[self.wp] = data;
             self.wp += 1;
         } else {
             self.wp = 0; // reset
@@ -109,6 +108,19 @@ impl Controller2BCParcer {
             self.wp = 0;
 
             Some(res)
+        } else {
+            None
+        }
+    }
+
+    pub fn count(&self) -> usize {
+        self.wp
+    }
+
+    pub fn data(&mut self) -> Option<[u8; 12]> {
+        if self.wp == self.raw_data.len() {
+            self.wp = 0;
+            Some(self.raw_data.clone())
         } else {
             None
         }

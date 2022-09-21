@@ -12,5 +12,6 @@ target = "xtensa-esp8266-none-elf"
 build-std = ["core"]
 
 [alias]
+f = "espflash --release"
 fm = "espmonitor --release --target xtensa-esp8266-none-elf /dev/ttyUSB0 --flash"
 m = "espmonitor --release --target xtensa-esp8266-none-elf /dev/ttyUSB0"
