@@ -11,6 +11,7 @@ const WATS_PER_UNIT: u32 = 13;
 pub struct Controller2BCParcer {
     raw_data: [u8; 12],
     wp: usize,
+    end_timestamp: u32,
 }
 
 #[derive(Debug, FromPrimitive)]
@@ -54,21 +55,22 @@ pub enum MovingMode {
     Asist = 1 << 4,
 }
 
-#[derive(Debug)]
-struct Watts(pub u32);
+#[derive(Debug, Clone, Copy)]
+pub struct Watts(pub u32);
 
-#[derive(Debug)]
-struct Celsius(pub i8);
+#[derive(Debug, Clone, Copy)]
+pub struct Celsius(pub i8);
 
 #[derive(Debug)]
 pub struct Message {
-    bat_lvl: BatLevel,
-    wheel_rotation_period: Milliseconds,
-    error: Error,
-    crc: u8,
-    moving_mode: MovingMode,
-    power: Watts,
-    motor_temperature: Celsius,
+    pub bat_lvl: BatLevel,
+    pub wheel_rotation_period: Milliseconds,
+    pub error: Error,
+    pub crc: u8,
+    pub moving_mode: MovingMode,
+    pub power: Watts,
+    pub motor_temperature: Celsius,
+    pub end_timestamp: u32,
 }
 
 impl Controller2BCParcer {
@@ -76,8 +78,15 @@ impl Controller2BCParcer {
         let ok = match self.wp {
             0 => data == 0x41,
             2 => data == 0x30,
-            10 | 11 => data == 0,
-            1..=11 => true,
+            10 => data == 0,
+            1..=9 => true,
+            11 => {
+                let res = data == 0;
+                if res {
+                    self.end_timestamp = xtensa_lx::timer::get_cycle_count();
+                }
+                res
+            }
 
             _ => false,
         };
@@ -85,8 +94,6 @@ impl Controller2BCParcer {
         if ok {
             self.raw_data[self.wp] = data;
             self.wp += 1;
-        } else {
-            self.wp = 0; // reset
         }
     }
 
@@ -104,6 +111,7 @@ impl Controller2BCParcer {
                 moving_mode: FromPrimitive::from_u8(self.raw_data[7]).unwrap_or_default(),
                 power: Watts(self.raw_data[8] as u32 * WATS_PER_UNIT),
                 motor_temperature: Celsius(self.raw_data[9] as i8),
+                end_timestamp: self.end_timestamp,
             };
             self.wp = 0;
 
@@ -113,10 +121,12 @@ impl Controller2BCParcer {
         }
     }
 
+    #[allow(unused)]
     pub fn count(&self) -> usize {
         self.wp
     }
 
+    #[allow(unused)]
     pub fn data(&mut self) -> Option<[u8; 12]> {
         if self.wp == self.raw_data.len() {
             self.wp = 0;
@@ -157,9 +167,12 @@ impl Default for Message {
             moving_mode: Default::default(),
             power: Watts(0),
             motor_temperature: Celsius(0),
+            end_timestamp: 0,
         }
     }
 }
+
+//-----------------------------------------------------------------------------
 
 impl Display for Message {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -180,5 +193,11 @@ T: {motor_temperature}*C"#,
             power = self.power.0,
             motor_temperature = self.motor_temperature.0,
         )
+    }
+}
+
+impl Display for Watts {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{} W", self.0)
     }
 }

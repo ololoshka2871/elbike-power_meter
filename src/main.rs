@@ -3,34 +3,29 @@
 #![feature(asm_experimental_arch)]
 
 mod controller2bc_parcer;
-mod uart0_cfg;
-
-use core::{
-    borrow::{Borrow, BorrowMut},
-    cell::UnsafeCell,
-    fmt::Write,
-};
-
-use arrayvec::ArrayString;
-use controller2bc_parcer::{Controller2BCParcer, Message};
-use embedded_graphics::{
-    mono_font::{self, MonoTextStyleBuilder},
-    pixelcolor::BinaryColor,
-    prelude::{Point, Size},
-    primitives::{Primitive, PrimitiveStyle, Rectangle},
-    text::{Baseline, Text},
-    Drawable,
-};
-use esp8266_hal::{prelude::*, target::Peripherals, time::MegaHertz};
-
-use num::rational::Ratio;
-use panic_halt as _;
-use ssd1306::prelude::DisplayConfig;
-use uart0_cfg::UART0Ex;
-use xtensa_lx::mutex::{CriticalSectionMutex, Mutex};
-
+mod display;
 mod logger;
 mod nanosecond_delay_provider;
+mod uart0_cfg;
+
+mod config;
+
+use core::{fmt::Write, ops::DerefMut};
+
+use config::MAX_CYCLE_TICKS;
+use controller2bc_parcer::{Controller2BCParcer, Message};
+use display::Display;
+use display_interface::WriteOnlyDataCommand;
+
+use esp8266_hal::{prelude::*, target::Peripherals, time::MegaHertz};
+use xtensa_lx::{
+    mutex::{CriticalSectionMutex, Mutex},
+    timer::{delay, get_cycle_count},
+};
+
+use uart0_cfg::UART0Ex;
+
+use panic_halt as _;
 
 const UART_BOUD: u32 = 115200;
 const CPU_SPEED_MHZ: u32 = 80;
@@ -53,14 +48,9 @@ fn main() -> ! {
 
     let (_, mut timer2) = dp.TIMER.timers();
 
-    let mut disp_reset_pin = pins.gpio2.into_open_drain_output();
-    let _ = disp_reset_pin.set_high();
-    timer2.delay_ms(1);
-    let _ = disp_reset_pin.set_high();
-
     let i2c: esp8266_software_i2c::SharedI2CBus<_, _, _> = esp8266_software_i2c::I2C::new(
-        pins.gpio5.into_open_drain_output(),
         pins.gpio4.into_open_drain_output(),
+        pins.gpio5.into_open_drain_output(),
         nanosecond_delay_provider::NanosecondDelayProvider {
             minimal: 50,
             k: 640,
@@ -74,31 +64,15 @@ fn main() -> ! {
         eeprom24x::Eeprom24x::new_24x08(i2c.make_accessor(), eeprom24x::SlaveAddr::default());
     */
 
-    //let mut display_reset_pin = pins.gpio5.into_push_pull_output();
     let display_interface = ssd1306::I2CDisplayInterface::new(i2c.make_accessor());
-
     writeln!(serial, "\nDisplay interface...").unwrap();
 
-    // Font iso_8859_5 есть русские символы, вывод "приямо так".
-    // Вычисление выравнивания не работает с русскими символами
-
-    let mut disp = ssd1306::Ssd1306::new(
-        display_interface,
-        ssd1306::size::DisplaySize128x64,
-        ssd1306::rotation::DisplayRotation::Rotate0,
-    )
-    .into_buffered_graphics_mode();
-
+    let mut display = display::Display::new(display_interface);
     writeln!(serial, "\nDisplay....").unwrap();
 
-    disp.init().unwrap();
-
-    writeln!(serial, "\nDisplay Init.....").unwrap();
-
-    //draw_initial_screen(&mut disp).expect("Failed to draw init screeen");
-    draw_frame(&mut disp, Message::default()).expect("Failed to draw init screeen");
-
-    writeln!(serial, "\nDisplay draw...").unwrap();
+    let mut disp_reset_pin = pins.gpio2.into_open_drain_output();
+    display.reset(&mut disp_reset_pin, &mut timer2);
+    writeln!(serial, "\nDisplay reset....").unwrap();
 
     (&PARCER).lock(|l| *l = Some(Controller2BCParcer::default()));
     let mut serial = serial.attach_interrupt(move |_serial| {
@@ -109,7 +83,12 @@ fn main() -> ! {
 
     writeln!(serial, "\nUart parcer...").unwrap();
 
-    loop {
+    let mut start = get_cycle_count();
+    let mut end = start.wrapping_add(MAX_CYCLE_TICKS);
+
+    //timeout_result(serial.deref_mut(), &mut display);
+
+    'main: loop {
         /*
         let mut eeprom_data = [0u8; 128];
         match eeprom.read_data(0, &mut eeprom_data) {
@@ -119,133 +98,74 @@ fn main() -> ! {
         .unwrap();
         */
 
-        // A_0__________
-        if let Some(result) = (&PARCER).lock(|l| l.as_mut().unwrap().try_get()) {
-            let _ = writeln!(serial, "Got message: {:?}", result);
-            draw_frame(&mut disp, result).expect("Failed to draw frame");
-        } 
+        if end < start {
+            // wrap
+            let mut now = get_cycle_count();
+            while now > end && now < start {
+                if try_process_result(serial.deref_mut(), &mut display, &mut start, &mut end) {
+                    continue 'main;
+                }
+                now = get_cycle_count();
+            }
+        } else {
+            // normal
+            while get_cycle_count() < end {
+                if try_process_result(serial.deref_mut(), &mut display, &mut start, &mut end) {
+                    continue 'main;
+                }
+            }
+        }
+
         /*
-        else {
-            let c = (&PARCER).lock(|l| l.as_ref().unwrap().count());
-            let _ = writeln!(serial, "count: {:08}\r", &c);
+        {
+            disp_reset_pin.set_low();
+            timer2.delay_us(1);
+            disp_reset_pin.set_high();
         }
         */
 
-        /*
-        let c = (&PARCER).lock(|l| l.as_ref().unwrap().count());
-        let _ = writeln!(serial, "count: {:08}\r", &c);
-        */
+        timeout_result(serial.deref_mut(), &mut display);
+        start = end.wrapping_add(MAX_CYCLE_TICKS);
+        end = start.wrapping_add(MAX_CYCLE_TICKS);
 
-        //writeln!(serial, "Ping").unwrap();
-        timer2.delay_ms(100);
+        /*
+        if let Some(result) = (&PARCER).lock(|l| l.as_mut().unwrap().try_get()) {
+            let _ = writeln!(serial, "Got message: {:?}", result);
+            display.draw_frame(result).expect("Failed to draw frame");
+        }
+        */
     }
 }
 
-fn draw_frame<DI, SIZE>(
-    disp: &mut ssd1306::Ssd1306<DI, SIZE, ssd1306::mode::BufferedGraphicsMode<SIZE>>,
-    msg: Message,
-) -> Result<(), display_interface::DisplayError>
+fn try_process_result<'a, SER, DI>(
+    serial: &mut SER,
+    display: &mut Display<'a, DI>,
+    start: &mut u32,
+    end: &mut u32,
+) -> bool
 where
-    DI: display_interface::WriteOnlyDataCommand,
-    SIZE: ssd1306::size::DisplaySize,
+    DI: WriteOnlyDataCommand,
+    SER: core::fmt::Write,
 {
-    let small_font_italic = MonoTextStyleBuilder::new()
-        .font(&mono_font::iso_8859_5::FONT_6X13_ITALIC)
-        .text_color(BinaryColor::On)
-        .build();
+    if let Some(result) = (&PARCER).lock(|l| l.as_mut().unwrap().try_get()) {
+        let _ = writeln!(serial, "Got message: {:?}", result);
+        display.draw_frame(result).expect("Failed to draw frame");
 
-    let display_dim = disp.dimensions();
-    let _display_dim = (display_dim.0 as i32, display_dim.1 as i32);
+        delay(end.wrapping_sub(get_cycle_count()));
+        *start = end.wrapping_add(MAX_CYCLE_TICKS);
+        *end = start.wrapping_add(MAX_CYCLE_TICKS);
 
-    let mut buf: ArrayString<256> = ArrayString::new();
-
-    write!(buf, "{}", msg).unwrap();
-
-    Text::with_baseline(
-        buf.as_str(),
-        Point::new(18, 0),
-        small_font_italic,
-        Baseline::Top,
-    )
-    .draw(disp)?;
-
-    disp.flush()?;
-
-    Ok(())
+        return true;
+    }
+    false
 }
 
-/*
-fn draw_initial_screen<DI, SIZE>(
-    disp: &mut ssd1306::Ssd1306<DI, SIZE, ssd1306::mode::BufferedGraphicsMode<SIZE>>,
-) -> Result<(), display_interface::DisplayError>
-where
-    DI: display_interface::WriteOnlyDataCommand,
-    SIZE: ssd1306::size::DisplaySize,
-{
-    let big_font = MonoTextStyleBuilder::new()
-        .font(&mono_font::iso_8859_5::FONT_10X20)
-        .text_color(BinaryColor::On)
-        .build();
-
-    let small_font_italic = MonoTextStyleBuilder::new()
-        .font(&mono_font::iso_8859_5::FONT_6X13_ITALIC)
-        .text_color(BinaryColor::On)
-        .build();
-
-    let display_w = disp.dimensions().0 as i32;
-
-    disp.flush().unwrap();
-
-    Text::with_baseline("Измеритель", Point::new(18, -3), big_font, Baseline::Top).draw(disp)?;
-    Text::with_baseline(
-        "динамического",
-        Point::new(
-            0, //(display_h / 2).into(),
-            big_font.font.character_size.height as i32 - 3 - 3,
-        ),
-        big_font,
-        Baseline::Top,
-    )
-    .draw(disp)?;
-    Text::with_baseline(
-        "сопротивления",
-        Point::new(
-            0, //(display_h / 2).into(),
-            (big_font.font.character_size.height as i32 - 3) * 2 - 3,
-        ),
-        big_font,
-        Baseline::Top,
-    )
-    .draw(disp)?;
-
-    Rectangle::new(
-        Point::new(
-            0,
-            disp.dimensions().1 as i32 - small_font_italic.font.character_size.height as i32 + 1,
-        ),
-        Size::new(
-            display_w as u32,
-            small_font_italic.font.character_size.height - 1,
-        ),
-    )
-    .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
-    .draw(disp)?;
-
-    Text::new(
-        "СКТБ ЭлПА(c)",
-        Point::new(
-            (Ratio::<i32>::new(1, 4) * display_w).to_integer() as i32,
-            disp.dimensions().1 as i32 - 2,
-        ),
-        MonoTextStyleBuilder::from(&small_font_italic)
-            .background_color(BinaryColor::On)
-            .text_color(BinaryColor::Off)
-            .build(),
-    )
-    .draw(disp)?;
-
-    disp.flush()?;
-
-    Ok(())
+fn timeout_result<'a, SER: core::fmt::Write, DI: WriteOnlyDataCommand>(
+    serial: &mut SER,
+    display: &mut Display<'a, DI>,
+) {
+    //let _ = writeln!(serial, "Message timeout: {}ticks", MAX_CYCLE_TICKS);
+    display
+        .duplucate_current_frame(MAX_CYCLE_TICKS)
+        .expect("Failed to draw dule frame");
 }
-*/

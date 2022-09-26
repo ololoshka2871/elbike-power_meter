@@ -49,12 +49,16 @@ where
     /// );
     /// ```
     pub fn new(sda: SDA, scl: SCL, delay_provider: DP) -> Self {
-        Self {
+        let mut res = Self {
             sda_pin: sda,
             scl_pin: scl,
             speed: I2CSpeed::Normal100kHz,
             delay_provider,
-        }
+        };
+
+        res.end_transmission();
+
+        res
     }
 
     /// This method begins a new i2c transmission by sending
