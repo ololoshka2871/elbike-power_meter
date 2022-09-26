@@ -18,6 +18,8 @@ use crate::{
     controller2bc_parcer::{Message, Watts},
 };
 
+const CHART_START_H: i32 = 36;
+
 // Font iso_8859_5 есть русские символы, вывод "приямо так".
 // Вычисление выравнивания не работает с русскими символами
 pub struct Display<'a, DI> {
@@ -76,53 +78,51 @@ where
         self.disp.init().expect("failed to init display");
     }
 
-    pub fn draw_frame(&mut self, msg: Message) -> Result<(), display_interface::DisplayError> {
-        self.disp.clear();
-
-        let display_dim = self.disp.dimensions();
-        let _display_dim = (display_dim.0 as i32, display_dim.1 as i32);
-
-        self.power_data_points[self.write_pos] = msg.power;
-        self.work_total += msg.power.0 as f32;
-        //let work_fragment = self.power_data_points.iter().fold(0u32, |acc, p| acc + p.0);
+    fn draw_comon(&mut self, p: Watts, ts: u32) -> Result<(), display_interface::DisplayError> {
+        self.power_data_points[self.write_pos] = p;
         self.wrap_wp();
 
-        self.draw_progress_bar(msg.power)?;
-        self.draw_total_power(msg.power, msg.end_timestamp)?;
+        self.disp.clear();
+
+        self.draw_progress_bar(p)?;
+        self.draw_total_power(p, ts)?;
+        self.draw_chart()?;
 
         self.disp.flush()?;
 
         Ok(())
     }
 
-    pub fn duplucate_current_frame(&mut self, ts: u32) -> Result<(), display_interface::DisplayError> {
-        self.disp.clear();
+    pub fn draw_frame(&mut self, msg: Message) -> Result<(), display_interface::DisplayError> {
+        self.draw_comon(msg.power, msg.end_timestamp)
+    }
 
+    pub fn data(&self) -> &[Watts] {
+        &self.power_data_points
+    }
+
+    pub fn duplucate_current_frame(
+        &mut self,
+        ts: u32,
+    ) -> Result<(), display_interface::DisplayError> {
         // duplicate last point
-        let diplicate_result = if self.write_pos == 0 {
+        let diplicate_result = /*if self.write_pos == 0 {
             self.power_data_points[self.power_data_points.len() - 1]
         } else {
             self.power_data_points[self.write_pos - 1]
-        };
+        };*/ Watts(0);
 
-        self.power_data_points[self.write_pos] = diplicate_result;
-        self.work_total += diplicate_result.0 as f32;
-
-        self.wrap_wp();
-
-        self.draw_progress_bar(diplicate_result)?;
-        self.draw_total_power(diplicate_result, ts)?;
-
-        self.disp.flush()?;
-
-        Ok(())
+        self.draw_comon(diplicate_result, ts)
     }
 
     fn draw_progress_bar(&mut self, power: Watts) -> Result<(), display_interface::DisplayError> {
         let max_wigth = self.disp.dimensions().0 as u32;
         Rectangle::new(
             Point::zero(),
-            Size::new((max_wigth * power.0) / MAX_TORQUE, YELLOW_LINE_HEIGTH),
+            Size::new(
+                Self::transform_size(power.0, max_wigth, MAX_TORQUE),
+                YELLOW_LINE_HEIGTH,
+            ),
         )
         .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
         .draw(&mut self.disp)?;
@@ -152,16 +152,17 @@ where
         power: Watts,
         end_ts: u32,
     ) -> Result<(), display_interface::DisplayError> {
-        let total_power = if let Some(prev_ts) = self.prev_timestamp {
+        let work = if let Some(prev_ts) = self.prev_timestamp {
             let len = end_ts.wrapping_sub(prev_ts);
             (power.0 * len) as f32 * CPU_CYCLE_TIME_S
         } else {
             0.0
         };
         self.prev_timestamp = Some(end_ts);
+        self.work_total += work;
 
         let mut buf: ArrayString<32> = ArrayString::new();
-        write!(buf, "> {:06.2}Вт*ч", total_power).unwrap();
+        write!(buf, ">{:07.2}Вт*c", self.work_total).unwrap();
 
         Text::with_text_style(
             &buf,
@@ -175,8 +176,8 @@ where
         .draw(&mut self.disp)?;
 
         Line::new(
-            Point::new(0, 35),
-            Point::new(self.disp.dimensions().0 as i32, 35),
+            Point::new(0, CHART_START_H - 1),
+            Point::new(self.disp.dimensions().0 as i32, CHART_START_H),
         )
         .into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
         .draw(&mut self.disp)?;
@@ -184,11 +185,32 @@ where
         Ok(())
     }
 
-    fn wrap_wp(&mut self) {
-        self.write_pos = if self.write_pos == self.power_data_points.len() - 1 {
-            0
-        } else {
-            self.write_pos + 1
+    fn draw_chart(&mut self) -> Result<(), display_interface::DisplayError> {
+        let last_pixel_h = self.disp.dimensions().1 as i32 - 1;
+        let max_heigh = self.disp.dimensions().1 as u32 - CHART_START_H as u32;
+
+        let mut line = Line::new(Point::new(0, last_pixel_h), Point::new(0, last_pixel_h));
+
+        for x in 0..self.power_data_points.len() {
+            let element =
+                self.power_data_points[(self.write_pos + x) % self.power_data_points.len()];
+
+            line.start.x = x as i32;
+            line.end.x = x as i32;
+            line.end.y =
+                last_pixel_h - Self::transform_size(element.0, max_heigh, MAX_TORQUE) as i32;
+            line.into_styled(PrimitiveStyle::with_stroke(BinaryColor::On, 1))
+                .draw(&mut self.disp)?;
         }
+
+        Ok(())
+    }
+
+    fn wrap_wp(&mut self) {
+        self.write_pos = (self.write_pos + 1) % self.power_data_points.len()
+    }
+
+    fn transform_size(current: u32, target_max: u32, max_value: u32) -> u32 {
+        (target_max * current) / max_value 
     }
 }

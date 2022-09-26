@@ -12,8 +12,7 @@ mod config;
 
 use core::{fmt::Write, ops::DerefMut};
 
-use config::MAX_CYCLE_TICKS;
-use controller2bc_parcer::{Controller2BCParcer, Message};
+use controller2bc_parcer::Controller2BCParcer;
 use display::Display;
 use display_interface::WriteOnlyDataCommand;
 
@@ -22,6 +21,8 @@ use xtensa_lx::{
     mutex::{CriticalSectionMutex, Mutex},
     timer::{delay, get_cycle_count},
 };
+
+use config::MAX_CYCLE_TICKS;
 
 use uart0_cfg::UART0Ex;
 
@@ -75,7 +76,7 @@ fn main() -> ! {
     writeln!(serial, "\nDisplay reset....").unwrap();
 
     (&PARCER).lock(|l| *l = Some(Controller2BCParcer::default()));
-    let mut serial = serial.attach_interrupt(move |_serial| {
+    let mut serial = serial.attach_interrupt(|_serial| {
         if let Ok(b) = _serial.read() {
             (&PARCER).lock(|l| l.as_mut().unwrap().feed(b));
         }
@@ -151,9 +152,14 @@ where
         let _ = writeln!(serial, "Got message: {:?}", result);
         display.draw_frame(result).expect("Failed to draw frame");
 
-        delay(end.wrapping_sub(get_cycle_count()));
+        if get_cycle_count() < *end {
+            delay(end.wrapping_sub(get_cycle_count()));
+            *end = start.wrapping_add(MAX_CYCLE_TICKS);
+        } else {
+            *end = start.wrapping_add(MAX_CYCLE_TICKS - (get_cycle_count() - *end));
+        }
+
         *start = end.wrapping_add(MAX_CYCLE_TICKS);
-        *end = start.wrapping_add(MAX_CYCLE_TICKS);
 
         return true;
     }
@@ -161,7 +167,7 @@ where
 }
 
 fn timeout_result<'a, SER: core::fmt::Write, DI: WriteOnlyDataCommand>(
-    serial: &mut SER,
+    _serial: &mut SER,
     display: &mut Display<'a, DI>,
 ) {
     //let _ = writeln!(serial, "Message timeout: {}ticks", MAX_CYCLE_TICKS);
