@@ -82,23 +82,22 @@ where
         self.power_data_points[self.write_pos] = p;
         self.wrap_wp();
 
-        self.disp.clear();
+        {
+            // ~23 ms
+            self.disp.clear();
 
-        self.draw_progress_bar(p)?;
-        self.draw_total_power(p, ts)?;
-        self.draw_chart()?;
+            self.draw_progress_bar(p)?;
+            self.draw_total_power(p, ts)?;
+            self.draw_chart()?;
+        }
 
-        self.disp.flush()?;
+        self.disp.flush()?; // ~30ms
 
         Ok(())
     }
 
     pub fn draw_frame(&mut self, msg: Message) -> Result<(), display_interface::DisplayError> {
         self.draw_comon(msg.power, msg.end_timestamp)
-    }
-
-    pub fn data(&self) -> &[Watts] {
-        &self.power_data_points
     }
 
     pub fn duplucate_current_frame(
@@ -211,6 +210,6 @@ where
     }
 
     fn transform_size(current: u32, target_max: u32, max_value: u32) -> u32 {
-        (target_max * current) / max_value 
+        (target_max * current) / max_value
     }
 }

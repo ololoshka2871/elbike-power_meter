@@ -14,7 +14,7 @@ pub struct Controller2BCParcer {
     end_timestamp: u32,
 }
 
-#[derive(Debug, FromPrimitive)]
+#[derive(Debug, FromPrimitive, Clone, Copy)]
 pub enum BatLevel {
     EmptyBox = 0,
     BorderFlashing = 1,
@@ -35,7 +35,7 @@ pub enum BatLevel {
     Lvl13 = 16,
 }
 
-#[derive(Debug, FromPrimitive)]
+#[derive(Debug, FromPrimitive, Clone, Copy)]
 pub enum Error {
     Info0 = 0x20,
     Info6 = 0x21,
@@ -47,7 +47,7 @@ pub enum Error {
     Info0_2 = 0x28,
 }
 
-#[derive(Debug, FromPrimitive)]
+#[derive(Debug, FromPrimitive, Clone, Copy)]
 pub enum MovingMode {
     Idle = 0,
     AnimateThrottle = 1 << 0,
@@ -61,7 +61,7 @@ pub struct Watts(pub u32);
 #[derive(Debug, Clone, Copy)]
 pub struct Celsius(pub i8);
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Message {
     pub bat_lvl: BatLevel,
     pub wheel_rotation_period: Milliseconds,

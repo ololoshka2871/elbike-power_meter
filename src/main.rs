@@ -22,14 +22,11 @@ use xtensa_lx::{
     timer::{delay, get_cycle_count},
 };
 
-use config::MAX_CYCLE_TICKS;
+use config::{CPU_SPEED_MHZ, MAX_CYCLE_TICKS, UART_BOUD};
 
 use uart0_cfg::UART0Ex;
 
 use panic_halt as _;
-
-const UART_BOUD: u32 = 115200;
-const CPU_SPEED_MHZ: u32 = 80;
 
 // если не сделать так то очему-то крашит стек
 static PARCER: CriticalSectionMutex<Option<Controller2BCParcer>> = CriticalSectionMutex::new(None);
@@ -99,6 +96,7 @@ fn main() -> ! {
         .unwrap();
         */
 
+        /*
         if end < start {
             // wrap
             let mut now = get_cycle_count();
@@ -116,6 +114,8 @@ fn main() -> ! {
                 }
             }
         }
+        */
+        let _ = try_process_result(serial.deref_mut(), &mut display, &mut start, &mut end);
 
         /*
         {
@@ -125,9 +125,11 @@ fn main() -> ! {
         }
         */
 
+        /* 
         timeout_result(serial.deref_mut(), &mut display);
         start = end.wrapping_add(MAX_CYCLE_TICKS);
         end = start.wrapping_add(MAX_CYCLE_TICKS);
+        */
 
         /*
         if let Some(result) = (&PARCER).lock(|l| l.as_mut().unwrap().try_get()) {
@@ -149,9 +151,10 @@ where
     SER: core::fmt::Write,
 {
     if let Some(result) = (&PARCER).lock(|l| l.as_mut().unwrap().try_get()) {
-        let _ = writeln!(serial, "Got message: {:?}", result);
         display.draw_frame(result).expect("Failed to draw frame");
+        let _ = writeln!(serial, "Got message: {:?}", result);
 
+        /* 
         if get_cycle_count() < *end {
             delay(end.wrapping_sub(get_cycle_count()));
             *end = start.wrapping_add(MAX_CYCLE_TICKS);
@@ -160,6 +163,7 @@ where
         }
 
         *start = end.wrapping_add(MAX_CYCLE_TICKS);
+        */
 
         return true;
     }
