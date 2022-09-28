@@ -78,6 +78,10 @@ where
         self.disp.init().expect("failed to init display");
     }
 
+    pub fn set_total_work(&mut self, initial_value: f32) {
+        self.work_total = initial_value;
+    }
+
     fn draw_comon(&mut self, p: Watts, ts: u32) -> Result<(), display_interface::DisplayError> {
         self.power_data_points[self.write_pos] = p;
         self.wrap_wp();
@@ -100,18 +104,8 @@ where
         self.draw_comon(msg.power, msg.end_timestamp)
     }
 
-    pub fn duplucate_current_frame(
-        &mut self,
-        ts: u32,
-    ) -> Result<(), display_interface::DisplayError> {
-        // duplicate last point
-        let diplicate_result = /*if self.write_pos == 0 {
-            self.power_data_points[self.power_data_points.len() - 1]
-        } else {
-            self.power_data_points[self.write_pos - 1]
-        };*/ Watts(0);
-
-        self.draw_comon(diplicate_result, ts)
+    pub fn total_power(&self) -> f32 {
+        self.work_total
     }
 
     fn draw_progress_bar(&mut self, power: Watts) -> Result<(), display_interface::DisplayError> {

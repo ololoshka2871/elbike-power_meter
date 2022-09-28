@@ -1,0 +1,13 @@
+[package]
+name = "eeprom-log"
+version = "0.0.1"
+authors = [
+    "ololoshka2871 <SweetTreasure@2ch.hk>"
+]
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Simple software i2c bus for esp8266"
+
+[dependencies]
+eeprom24x = { path = "../eeprom24x-rs" }
+embedded-hal = "0.2"

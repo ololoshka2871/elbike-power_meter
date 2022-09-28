@@ -10,3 +10,6 @@ pub const CPU_CYCLE_TIME_S: f32 = 110E-3f32 / MAX_CYCLE_TICKS as f32;
 
 pub const UART_BOUD: u32 = 115200;
 pub const CPU_SPEED_MHZ: u32 = 80;
+
+// write current work into eeptom every results 
+pub const UPDATE_EEPROM_EVERY: u32 = 10;

@@ -26,9 +26,10 @@ ssd1306 = "0.7"
 embedded-graphics = "0.7" 
 
 esp8266-software-i2c = { path = "libs/software-i2c", features = ["esp8266"] }
+eeprom-log = { path = "libs/eeprom-log" }
 
 #24xx
-eeprom24x = "0.5"
+eeprom24x = { path = "libs/eeprom24x-rs" }
 
 [profile.release]
 lto = true

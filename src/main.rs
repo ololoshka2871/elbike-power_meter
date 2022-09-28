@@ -4,7 +4,7 @@
 
 mod controller2bc_parcer;
 mod display;
-mod logger;
+//mod logger;
 mod nanosecond_delay_provider;
 mod uart0_cfg;
 
@@ -17,12 +17,9 @@ use display::Display;
 use display_interface::WriteOnlyDataCommand;
 
 use esp8266_hal::{prelude::*, target::Peripherals, time::MegaHertz};
-use xtensa_lx::{
-    mutex::{CriticalSectionMutex, Mutex},
-    timer::{delay, get_cycle_count},
-};
+use xtensa_lx::mutex::{CriticalSectionMutex, Mutex};
 
-use config::{CPU_SPEED_MHZ, MAX_CYCLE_TICKS, UART_BOUD};
+use config::{CPU_SPEED_MHZ, UART_BOUD, UPDATE_EEPROM_EVERY};
 
 use uart0_cfg::UART0Ex;
 
@@ -42,35 +39,39 @@ fn main() -> ! {
         .set_boud_devider(UART_BOUD, MegaHertz(CPU_SPEED_MHZ))
         .serial(pins.gpio1.into_uart(), pins.gpio3.into_uart());
 
-    writeln!(serial, "\nStartup!").unwrap();
-
-    let (_, mut timer2) = dp.TIMER.timers();
+    writeln!(serial, "Startup!\r").unwrap();
 
     let i2c: esp8266_software_i2c::SharedI2CBus<_, _, _> = esp8266_software_i2c::I2C::new(
         pins.gpio4.into_open_drain_output(),
         pins.gpio5.into_open_drain_output(),
-        nanosecond_delay_provider::NanosecondDelayProvider {
-            minimal: 50,
-            k: 640,
-        },
+        nanosecond_delay_provider::NanosecondDelayProvider {},
     )
     .set_speed(esp8266_software_i2c::I2CSpeed::Fast400kHz)
     .into();
 
-    /*
-    let mut eeprom =
-        eeprom24x::Eeprom24x::new_24x08(i2c.make_accessor(), eeprom24x::SlaveAddr::default());
-    */
+    let mut storage = eeprom_log::EepromLog::<f32, _, _, _>::init(eeprom24x::Eeprom24x::new_24x08(
+        i2c.make_accessor(),
+        eeprom24x::SlaveAddr::default(),
+    ));
 
     let display_interface = ssd1306::I2CDisplayInterface::new(i2c.make_accessor());
-    writeln!(serial, "\nDisplay interface...").unwrap();
+    writeln!(serial, "Display interface...\r").unwrap();
 
     let mut display = display::Display::new(display_interface);
-    writeln!(serial, "\nDisplay....").unwrap();
+    writeln!(serial, "Display....\r").unwrap();
 
-    let mut disp_reset_pin = pins.gpio2.into_open_drain_output();
-    display.reset(&mut disp_reset_pin, &mut timer2);
-    writeln!(serial, "\nDisplay reset....").unwrap();
+    {
+        let mut disp_reset_pin = pins.gpio2.into_open_drain_output();
+        let (_, mut timer2) = dp.TIMER.timers();
+        display.reset(&mut disp_reset_pin, &mut timer2);
+        writeln!(serial, "Display reset....\r").unwrap();
+    }
+
+    {
+        let last_work = storage.last().unwrap();
+        display.set_total_work(last_work);
+        writeln!(serial, "Load last work: {}....\r", last_work).unwrap();
+    }
 
     (&PARCER).lock(|l| *l = Some(Controller2BCParcer::default()));
     let mut serial = serial.attach_interrupt(|_serial| {
@@ -79,103 +80,40 @@ fn main() -> ! {
         }
     });
 
-    writeln!(serial, "\nUart parcer...").unwrap();
+    writeln!(serial, "Uart parcer...\r").unwrap();
 
-    let mut start = get_cycle_count();
-    let mut end = start.wrapping_add(MAX_CYCLE_TICKS);
+    let mut eeprom_update_counter = 0u32;
 
-    //timeout_result(serial.deref_mut(), &mut display);
+    loop {
+        if try_process_result(serial.deref_mut(), &mut display) {
+            eeprom_update_counter += 1;
+            if eeprom_update_counter == UPDATE_EEPROM_EVERY {
+                eeprom_update_counter = 0;
 
-    'main: loop {
-        /*
-        let mut eeprom_data = [0u8; 128];
-        match eeprom.read_data(0, &mut eeprom_data) {
-            Ok(_) => writeln!(serial, "Eeprom data: {:?}", eeprom_data),
-            Err(e) => writeln!(serial, "Failed to read eeprom: {:?}", e),
-        }
-        .unwrap();
-        */
-
-        /*
-        if end < start {
-            // wrap
-            let mut now = get_cycle_count();
-            while now > end && now < start {
-                if try_process_result(serial.deref_mut(), &mut display, &mut start, &mut end) {
-                    continue 'main;
-                }
-                now = get_cycle_count();
-            }
-        } else {
-            // normal
-            while get_cycle_count() < end {
-                if try_process_result(serial.deref_mut(), &mut display, &mut start, &mut end) {
-                    continue 'main;
-                }
+                let total_power = display.total_power();
+                let w_index = storage
+                    .append(total_power)
+                    .expect("Failed to store in EEPROM");
+                writeln!(
+                    serial,
+                    "EEPROM_STORED: {}: {:.2} \r",
+                    w_index, total_power
+                )
+                .unwrap();
             }
         }
-        */
-        let _ = try_process_result(serial.deref_mut(), &mut display, &mut start, &mut end);
-
-        /*
-        {
-            disp_reset_pin.set_low();
-            timer2.delay_us(1);
-            disp_reset_pin.set_high();
-        }
-        */
-
-        /* 
-        timeout_result(serial.deref_mut(), &mut display);
-        start = end.wrapping_add(MAX_CYCLE_TICKS);
-        end = start.wrapping_add(MAX_CYCLE_TICKS);
-        */
-
-        /*
-        if let Some(result) = (&PARCER).lock(|l| l.as_mut().unwrap().try_get()) {
-            let _ = writeln!(serial, "Got message: {:?}", result);
-            display.draw_frame(result).expect("Failed to draw frame");
-        }
-        */
     }
 }
 
-fn try_process_result<'a, SER, DI>(
-    serial: &mut SER,
-    display: &mut Display<'a, DI>,
-    start: &mut u32,
-    end: &mut u32,
-) -> bool
+fn try_process_result<'a, SER, DI>(serial: &mut SER, display: &mut Display<'a, DI>) -> bool
 where
     DI: WriteOnlyDataCommand,
     SER: core::fmt::Write,
 {
     if let Some(result) = (&PARCER).lock(|l| l.as_mut().unwrap().try_get()) {
         display.draw_frame(result).expect("Failed to draw frame");
-        let _ = writeln!(serial, "Got message: {:?}", result);
-
-        /* 
-        if get_cycle_count() < *end {
-            delay(end.wrapping_sub(get_cycle_count()));
-            *end = start.wrapping_add(MAX_CYCLE_TICKS);
-        } else {
-            *end = start.wrapping_add(MAX_CYCLE_TICKS - (get_cycle_count() - *end));
-        }
-
-        *start = end.wrapping_add(MAX_CYCLE_TICKS);
-        */
-
+        let _ = writeln!(serial, "Got message: {:?}\r", result);
         return true;
     }
     false
-}
-
-fn timeout_result<'a, SER: core::fmt::Write, DI: WriteOnlyDataCommand>(
-    _serial: &mut SER,
-    display: &mut Display<'a, DI>,
-) {
-    //let _ = writeln!(serial, "Message timeout: {}ticks", MAX_CYCLE_TICKS);
-    display
-        .duplucate_current_frame(MAX_CYCLE_TICKS)
-        .expect("Failed to draw dule frame");
 }

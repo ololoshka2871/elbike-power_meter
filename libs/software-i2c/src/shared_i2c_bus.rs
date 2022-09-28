@@ -84,8 +84,13 @@ where
         unsafe {
             (*bus).begin_transmission(address, true)?;
             (*bus).write(bytes)?;
-            for place in buffer.iter_mut() {
-                match (*bus).read(true) {
+            (*bus).end_transmission();
+
+            (*bus).begin_transmission(address, false)?;
+
+            let last = buffer.len() - 1;
+            for (i, place) in buffer.iter_mut().enumerate() {
+                match (*bus).read(i < last) {
                     Ok(v) => *place = v,
                     Err(e) => {
                         res = Err(e);

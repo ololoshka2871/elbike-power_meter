@@ -176,10 +176,14 @@ where
             mask >>= 1;
         }
 
+        /* 
         if ack {
             // Send the ack bit
             i2c_write_bit(self, false);
         }
+        */
+
+        i2c_write_bit(self, !ack);
 
         return Ok(byte);
     }
@@ -407,8 +411,12 @@ where
 
         Self::begin_transmission(self, address, true)?;
         Self::write(self, bytes)?;
-        for place in buffer.iter_mut() {
-            match Self::read(self, true) {
+        Self::end_transmission(self);
+
+        let last = buffer.len() - 1;
+        Self::begin_transmission(self, address, false)?;
+        for (i, place) in buffer.iter_mut().enumerate() {
+            match Self::read(self, i < last) {
                 Ok(v) => *place = v,
                 Err(e) => {
                     res = Err(e);
