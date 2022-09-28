@@ -34,6 +34,8 @@ fn main() -> ! {
 
     let pins = dp.GPIO.split();
 
+    let reset_result_pin = pins.gpio0.into_floating_input();
+
     let mut serial = dp
         .UART0
         .set_boud_devider(UART_BOUD, MegaHertz(CPU_SPEED_MHZ))
@@ -83,6 +85,7 @@ fn main() -> ! {
     writeln!(serial, "Uart parcer...\r").unwrap();
 
     let mut eeprom_update_counter = 0u32;
+    let mut reset_pin_was_triggered = false;
 
     loop {
         if try_process_result(serial.deref_mut(), &mut display) {
@@ -90,16 +93,20 @@ fn main() -> ! {
             if eeprom_update_counter == UPDATE_EEPROM_EVERY {
                 eeprom_update_counter = 0;
 
-                let total_power = display.total_power();
+                let total_power = if reset_pin_was_triggered && reset_result_pin.is_low().unwrap() {
+                    reset_pin_was_triggered = false;
+                    display.reset_accumulator();
+
+                    0.0
+                } else {
+                    reset_pin_was_triggered = reset_result_pin.is_low().unwrap();
+                    display.total_power()
+                };
+
                 let w_index = storage
                     .append(total_power)
                     .expect("Failed to store in EEPROM");
-                writeln!(
-                    serial,
-                    "EEPROM_STORED: {}: {:.2} \r",
-                    w_index, total_power
-                )
-                .unwrap();
+                writeln!(serial, "EEPROM_STORED: {}: {:.2} \r", w_index, total_power).unwrap();
             }
         }
     }

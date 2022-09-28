@@ -108,6 +108,10 @@ where
         self.work_total
     }
 
+    pub fn reset_accumulator(&mut self) {
+        self.work_total = 0.0
+    }
+
     fn draw_progress_bar(&mut self, power: Watts) -> Result<(), display_interface::DisplayError> {
         let max_wigth = self.disp.dimensions().0 as u32;
         Rectangle::new(
