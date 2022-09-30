@@ -159,7 +159,7 @@ where
         self.work_total += work;
 
         let mut buf: ArrayString<32> = ArrayString::new();
-        write!(buf, ">{:07.2}Вт*c", self.work_total).unwrap();
+        write!(buf, ">{:07.2}Вт*ч", self.work_total / 3600.0).unwrap();
 
         Text::with_text_style(
             &buf,

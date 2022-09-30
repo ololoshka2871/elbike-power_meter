@@ -77,15 +77,16 @@ impl Controller2BCParcer {
     pub fn feed(&mut self, data: u8) {
         let ok = match self.wp {
             0 => data == 0x41,
-            2 => data == 0x30,
-            10 => data == 0,
-            1..=9 => true,
+            //2 => data == 0x30,
+            //10 => data == 0,
+            1..=10 => true,
             11 => {
-                let res = data == 0;
-                if res {
+                //let res = data == 0;
+                //if res {
                     self.end_timestamp = xtensa_lx::timer::get_cycle_count();
-                }
-                res
+                //}
+                //res
+                true
             }
 
             _ => false,
