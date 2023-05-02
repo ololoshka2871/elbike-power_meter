@@ -55,6 +55,7 @@ fn main() -> ! {
         i2c.make_accessor(),
         eeprom24x::SlaveAddr::default(),
     ));
+    writeln!(serial, "Storage...\r").unwrap();
 
     let display_interface = ssd1306::I2CDisplayInterface::new(i2c.make_accessor());
     writeln!(serial, "Display interface...\r").unwrap();
