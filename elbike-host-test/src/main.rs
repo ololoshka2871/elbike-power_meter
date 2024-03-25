@@ -4,7 +4,13 @@ use anyhow::Result;
 use serialport::SerialPort;
 
 fn main() -> Result<()> {
-    let mut port = serialport::new("/dev/ttyUSB0", 115200)
+    let args: Vec<_> = std::env::args().collect();
+    if args.len() != 2 {
+        eprintln!("Usage: {} <serialport>", args[0]);
+        std::process::exit(1);
+    }
+
+    let mut port = serialport::new(args[1].clone(), 9600)
         .timeout(Duration::from_millis(100))
         .open()?;
 

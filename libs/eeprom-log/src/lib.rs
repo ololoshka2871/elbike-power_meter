@@ -70,7 +70,7 @@ where
     }
 
     fn read(&mut self, offset: usize) -> Result<StorageItem<T>, eeprom24x::Error<E>> {
-        let mut res: StorageItem<T> = unsafe { core::mem::MaybeUninit::uninit().assume_init() };
+        let mut res: StorageItem<T> = unsafe { core::mem::zeroed() };
 
         unsafe {
             let res = core::slice::from_raw_parts_mut(
