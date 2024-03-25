@@ -3,6 +3,7 @@ use core::fmt::Write;
 use arrayvec::ArrayString;
 use display_interface::WriteOnlyDataCommand;
 use embedded_graphics::{
+    geometry::Dimensions,
     mono_font::{self, MonoTextStyle, MonoTextStyleBuilder},
     pixelcolor::BinaryColor,
     prelude::{Point, Size},
@@ -10,8 +11,11 @@ use embedded_graphics::{
     text::{Baseline, Text, TextStyleBuilder},
     Drawable,
 };
-use embedded_hal::{blocking::delay::DelayMs, digital::v2::OutputPin};
-use ssd1306::{mode::BufferedGraphicsMode, prelude::DisplayConfig, Ssd1306};
+use embedded_hal::digital::v2::OutputPin;
+use ssd1306::{
+    mode::{BufferedGraphicsMode, DisplayConfig},
+    Ssd1306,
+};
 
 use crate::{
     config::{CPU_CYCLE_TIME_S, MAX_TORQUE, YELLOW_LINE_HEIGTH},
@@ -23,7 +27,7 @@ const CHART_START_H: i32 = 36;
 // Font iso_8859_5 есть русские символы, вывод "приямо так".
 // Вычисление выравнивания не работает с русскими символами
 pub struct Display<'a, DI> {
-    disp: Ssd1306<
+    pub(crate) disp: Ssd1306<
         DI,
         ssd1306::size::DisplaySize128x64,
         BufferedGraphicsMode<ssd1306::size::DisplaySize128x64>,
@@ -65,17 +69,17 @@ where
         }
     }
 
-    pub fn reset<O: OutputPin, D: DelayMs<u32>>(
+    pub fn reset<O: OutputPin, D: embedded_hal::blocking::delay::DelayMs<u8>>(
         &mut self,
         reset_pin: &mut O,
         delay_provider: &mut D,
     ) {
-        let _ = reset_pin.set_low();
-        delay_provider.delay_ms(1);
-        let _ = reset_pin.set_high();
-        delay_provider.delay_ms(1);
-
-        self.disp.init().expect("failed to init display");
+        match self.disp.reset(reset_pin, delay_provider) {
+            Ok(_) => {
+                self.disp.init().unwrap();
+            }
+            Err(_) => panic!("Display reset error"),
+        }
     }
 
     pub fn set_total_work(&mut self, initial_value: f32) {
@@ -88,7 +92,11 @@ where
 
         {
             // ~23 ms
-            self.disp.clear();
+            //self.disp.reset();
+            self.disp
+                .bounding_box()
+                .into_styled(PrimitiveStyle::with_fill(BinaryColor::Off))
+                .draw(&mut self.disp)?;
 
             self.draw_progress_bar(p)?;
             self.draw_total_power(p, ts)?;

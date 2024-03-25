@@ -59,8 +59,7 @@ fn test_simple(port: &mut dyn SerialPort) -> Result<()> {
 }
 
 fn draw_sinus(port: &mut dyn SerialPort) -> Result<()> {
-    let mut template: [u8; 12] 
-    				    = [0x41, 0, 0, 0, 0, 0, 0, 0, b'p', 0, 0, 0];
+    let mut template: [u8; 12] = [0x41, 0, 0, 0, 0, 0, 0, 0, b'p', 0, 0, 0];
 
     for i in 0..128 {
         template[8] = (92.0 * (2.0 * std::f32::consts::PI * i as f32 / 128.0).sin().abs()) as u8;
@@ -70,10 +69,10 @@ fn draw_sinus(port: &mut dyn SerialPort) -> Result<()> {
 
         std::thread::sleep(Duration::from_millis(85));
 
-	let mut dest = [0u8; 65535];
-    	let read = port.read(&mut dest)?;
+        let mut dest = [0u8; 65535];
+        let read = port.read(&mut dest)?;
 
-	print!("Res: {}", from_utf8(&dest[..read])?);
+        print!("Res: {}", from_utf8(&dest[..read])?);
     }
 
     Ok(())

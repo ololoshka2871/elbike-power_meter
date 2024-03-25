@@ -71,6 +71,24 @@ fn main() -> ! {
     }
 
     {
+        use embedded_graphics::{
+            geometry::Dimensions, pixelcolor::BinaryColor, prelude::Primitive,
+            primitives::PrimitiveStyle, Drawable,
+        };
+
+        display
+            .disp
+            .bounding_box()
+            .offset(-20)
+            .into_styled(PrimitiveStyle::with_fill(BinaryColor::On))
+            .draw(&mut display.disp)
+            .ok();
+        display.disp.flush().ok();
+        
+        writeln!(serial, "Draw test rect....\r").unwrap();
+    }
+
+    {
         let last_work = storage.last().unwrap();
         display.set_total_work(last_work);
         writeln!(serial, "Load last work: {}....\r", last_work).unwrap();
@@ -83,7 +101,7 @@ fn main() -> ! {
         }
     });
 
-    writeln!(serial, "Uart parcer...\r").unwrap();
+    writeln!(serial, "Uart parser...\r").unwrap();
 
     let mut eeprom_update_counter = 0u32;
     let mut reset_pin_was_triggered = false;

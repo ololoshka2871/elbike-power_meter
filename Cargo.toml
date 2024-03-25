@@ -7,7 +7,7 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 num = { version = "0.4", default-features = false }
-num-derive = "0.3"
+num-derive = "0.4.2"
 num-traits = { version = "0.2", default-features = false }
 arrayvec = { version = "0.7", default-features = false }
 nb = "1.0"
@@ -22,8 +22,8 @@ xtensa-lx-rt = { version = "0.13", optional = true, features = ["esp8266"] }
 # display
 display-interface = "0.4"
 display-interface-i2c = "0.4"
-ssd1306 = "0.7"
-embedded-graphics = "0.7" 
+ssd1306 = "0.8"
+embedded-graphics = "0.8" 
 
 esp8266-software-i2c = { path = "libs/software-i2c", features = ["esp8266"] }
 eeprom-log = { path = "libs/eeprom-log" }
