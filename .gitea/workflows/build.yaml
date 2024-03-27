@@ -1,6 +1,9 @@
 name: Build firmware
 on: push
 
+env:
+  GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
 jobs:
   build:
     runs-on: ubuntu-22.04
@@ -19,9 +22,12 @@ jobs:
         run: |
           cargo install espup
 
-      - name: Install esp32 toolchain
-        run: |
-          espup install -t esp32 --toolchain-version 1.76.0.0
+      - name: Install Rust for Xtensa
+        uses: esp-rs/xtensa-toolchain@v1.5
+        with:
+          default: true
+          version: "1.76.0"
+          ldproxy: true
 
       - name: Clone repository
         uses: actions/checkout@v4
