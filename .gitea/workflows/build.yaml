@@ -21,7 +21,7 @@ jobs:
 
       - name: Install esp32 toolchain
         run: |
-          espup install -t esp32
+          espup install -t esp32 --toolchain-version 1.76.0.0
 
       - name: Clone repository
         uses: actions/checkout@v4
