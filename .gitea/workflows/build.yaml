@@ -31,7 +31,7 @@ jobs:
           cargo build --release
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
           name: elbike-power-meter.elf
           path: target/xtensa-esp8266-none-elf/release/elbike-power-meter
