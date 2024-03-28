@@ -14,8 +14,7 @@ jobs:
         env:
           # Since `espup` queries the GitHub API, we strongly recommend you provide this
           # action with an API token to avoid transient errors.
-          env:
-            GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
         uses: esp-rs/xtensa-toolchain@v1.5
         with:
           default: true
