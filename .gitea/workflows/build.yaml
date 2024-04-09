@@ -1,26 +1,13 @@
 name: Build firmware
-on: push
+on: 
+  push:
+    branches:
+      - master
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: esp32-rust
     steps:
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y gcc build-essential gcc-xtensa-lx106
-
-      - name: Install Rust for Xtensa
-        env:
-          # Since `espup` queries the GitHub API, we strongly recommend you provide this
-          # action with an API token to avoid transient errors.
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-        uses: esp-rs/xtensa-toolchain@v1.5
-        with:
-          default: true
-          version: "1.76.0"
-          ldproxy: true
-
       - name: Clone repository
         uses: actions/checkout@v4
 
@@ -28,9 +15,8 @@ jobs:
         run: |
           cargo build --release
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+      - uses: akkuman/gitea-release-action@v1
         with:
-          name: elbike-power-meter.elf
-          path: target/xtensa-esp8266-none-elf/release/elbike-power-meter
-          if-no-files-found: error
+          body: This is an automatic release!
+          prerelease: true
+          files: target/xtensa-esp8266-none-elf/release/elbike-power-meter
