@@ -1,0 +1,5 @@
+<Project ToolsVersion="15.0">
+  <ItemGroup>
+    <PackageVersion Include="HidSharp" Version="2.0.5" />
+  </ItemGroup>
+</Project>
